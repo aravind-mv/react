@@ -135,7 +135,7 @@ jobs:
         docker pull instrumentisto/nmap
         echo "Running Nmap Scan with options: -T4 -F on $(nmapTarget)"
         # Run Nmap scan with options -T4 -F
-        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -sV --version-all -T4  -p $(scanPort) -oN /nmap/$(outputFile1) $(nmapTarget) || true
+        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -sV --version-all -T4  -p $(scanPort) -oN -Pn /nmap/$(outputFile1) $(nmapTarget) || true
         echo "Running Nmap Vulnerability Script Scan on $(nmapTarget)"
         # Run Nmap vulnerability script scan
         docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap --script vuln -oN /nmap/$(outputFile2) $(nmapTarget) || true
