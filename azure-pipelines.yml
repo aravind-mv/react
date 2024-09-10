@@ -14,7 +14,7 @@ variables:
   SERVER_IP: '20.9.143.123'  # Replace with your server IP
   SSH_USER: 'azuser'  # Replace with your SSH username
   SSH_PASSWORD: 'azqhpassword123'  # Directly included SSH password
-  TARGET_URL: 'http://example.com'  # Replace with your target URL for OWASP ZAP
+  TARGET_URL: '20.9.143.123'  # Replace with your target URL for OWASP ZAP
   HTML_REPORT_NAME: 'zap-report.html'
   XML_REPORT_NAME: 'zap-report.xml'
   nmapTarget: 'target.example.com'  # Replace with your Nmap target
