@@ -17,7 +17,7 @@ variables:
   TARGET_URL: 'http://20.9.143.123:3001'  # Replace with your target URL for OWASP ZAP
   HTML_REPORT_NAME: 'zap-report.html'
   XML_REPORT_NAME: 'zap-report.xml'
-  nmapTarget: '20.9.143.123:3001'  # Replace with your Nmap target
+  nmapTarget: 'http://20.9.143.123:3001'  # Replace with your Nmap target
   outputFile1: 'nmap-scan1.txt'
   outputFile2: 'nmap-vuln-scan.txt'
   outputFile3: 'nmap-scan3.txt'
