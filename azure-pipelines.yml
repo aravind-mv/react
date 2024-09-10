@@ -1,0 +1,169 @@
+trigger:
+  branches:
+    include:
+      - main  # Specify the branch to monitor for changes
+
+pool:
+  name: 'Default'  # Using the named pool 'Default'
+
+variables:
+  dockerImageName: 'my-react-app'
+  dockerFilePath: 'Dockerfile'
+  imageTarFile: 'my-react-app.tar'
+  serverPath: '/home/azuser/docker-image.tar'
+  SERVER_IP: '20.9.143.123'  # Replace with your server IP
+  SSH_USER: 'azuser'  # Replace with your SSH username
+  SSH_PASSWORD: 'azqhpassword123'  # Directly included SSH password
+  TARGET_URL: 'http://your-deployed-app-url.com'  # Replace with the target URL for OWASP ZAP
+  HTML_REPORT_NAME: 'owasp_zap_report.html'
+  XML_REPORT_NAME: 'owasp_zap_report.xml'
+  nmapTarget: 'your-server-ip-or-hostname'  # Replace with the target for Nmap scanning
+  outputFile1: 'nmap_scan1.txt'
+  outputFile2: 'nmap_vuln_scan.txt'
+  outputFile3: 'nmap_scan3.txt'
+  outputFile4: 'nmap_version_scan.txt'
+
+jobs:
+- job: BuildAndDeploy
+  displayName: 'Build and Deploy Docker Image'
+  steps:
+    - checkout: self
+      displayName: 'Checkout Code'
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install
+      displayName: 'Install dependencies'
+
+    - script: |
+        npm run build
+      displayName: 'Build React app'
+
+    - script: |
+        sudo docker build -t $(dockerImageName) .
+      displayName: 'Build Docker image'
+
+    - script: |
+        sudo docker save $(dockerImageName) -o $(imageTarFile)
+      displayName: 'Save Docker image as artifact'
+
+    - script: |
+        sudo chmod 644 $(imageTarFile)
+      displayName: 'Set correct permissions on Docker image file'
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(imageTarFile)
+        artifactName: 'docker-image'
+      displayName: 'Upload Docker image artifact'
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifactName: 'docker-image'
+        downloadPath: '$(Pipeline.Workspace)'
+      displayName: 'Download Docker image artifact'
+
+    - script: |
+        sudo docker load -i $(Pipeline.Workspace)/$(imageTarFile)
+      displayName: 'Load Docker image'
+
+    - script: |
+        sudo docker tag $(dockerImageName) $(SERVER_IP)/$(dockerImageName):latest
+      displayName: 'Tag Docker image'
+
+    - script: |
+        sudo apt-get install -y sshpass
+        sudo sshpass -p $(SSH_PASSWORD) scp -o StrictHostKeyChecking=no $(Pipeline.Workspace)/$(imageTarFile) $(SSH_USER)@$(SERVER_IP):$(serverPath)
+      displayName: 'Push Docker image to server'
+
+    - script: |
+        sudo apt-get install -y sshpass
+        sudo sshpass -p $(SSH_PASSWORD) ssh -o StrictHostKeyChecking=no $(SSH_USER)@$(SERVER_IP) '
+          sudo systemctl start docker || true
+          if [ "$(docker ps -q -f name=my-react-container)" ]; then
+            docker stop my-react-container
+            docker rm my-react-container
+          fi
+          if [ "$(docker images -q my-react-app)" ]; then
+            docker rmi my-react-app || true
+          fi
+          sudo docker load -i $(serverPath)
+          sudo docker run -d --name my-react-container -p 3001:80 my-react-app || { echo "Failed to run container"; exit 1; }
+          sudo docker logs my-react-container
+        '
+      displayName: 'Deploy to server'
+
+- stage: VulnerabilityScanning
+  displayName: 'Run Vulnerability Scanning'
+  dependsOn: BuildAndDeploy  # Ensure scanning runs after the build and deploy stage
+  jobs:
+  - job: OWASPZAPScan
+    displayName: 'Perform OWASP ZAP Vulnerability Scan'
+    steps:
+    - script: |
+        echo "Checking Docker Version:"
+        docker --version
+        echo "Pulling OWASP ZAP Docker Image:"
+        docker pull zaproxy/zap-stable
+        echo "Running OWASP ZAP Scan with Increased Timeout:"
+        docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw -t zaproxy/zap-stable zap-full-scan.py -t "$(TARGET_URL)" -r /zap/wrk/"$(HTML_REPORT_NAME)" -x /zap/wrk/"$(XML_REPORT_NAME)" -z "-timeout 60000" || true
+      displayName: 'Run OWASP ZAP Scan'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(HTML_REPORT_NAME)'
+        artifactName: 'ZAPReportHTML'
+      displayName: 'Publish OWASP ZAP HTML Report'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(XML_REPORT_NAME)'
+        artifactName: 'ZAPReportXML'
+      displayName: 'Publish OWASP ZAP XML Report'
+
+  - job: NmapScan
+    displayName: 'Perform Nmap Scan'
+    dependsOn: OWASPZAPScan  # Ensure Nmap scan runs after OWASP ZAP scan
+    steps:
+    - script: |
+        echo "Checking Docker Version:"
+        docker --version
+        echo "Pulling Nmap Docker Image:"
+        docker pull instrumentisto/nmap
+        echo "Running Nmap Scan with options: -T4 -F on $(nmapTarget)"
+        docker run --rm -v $(System.DefaultWorkingDirectory):/nmap/ instrumentisto/nmap -sV --version-all -T4 -F -oN /nmap/$(outputFile1) $(nmapTarget) || true
+        echo "Running Nmap Vulnerability Script Scan on $(nmapTarget)"
+        docker run --rm -v $(System.DefaultWorkingDirectory):/nmap/ instrumentisto/nmap --script vuln -oN /nmap/$(outputFile2) $(nmapTarget) || true
+        echo "Running Nmap Primary Scan with options: -A on $(nmapTarget)"
+        docker run --rm -v $(System.DefaultWorkingDirectory):/nmap/ instrumentisto/nmap -A -oN /nmap/$(outputFile3) $(nmapTarget) || true
+        echo "Running Nmap Version Detection Scan with options: -sV --version-all on $(nmapTarget)"
+        docker run --rm -v $(System.DefaultWorkingDirectory):/nmap/ instrumentisto/nmap -sV --version-all -oN /nmap/$(outputFile4) $(nmapTarget) || true
+      displayName: 'Run Nmap Scans'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(outputFile1)'
+        artifactName: 'NmapScan1Results'
+      displayName: 'Publish Nmap Scan 1 Results'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(outputFile2)'
+        artifactName: 'NmapScan2Results'
+      displayName: 'Publish Nmap Vulnerability Script Scan Results'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(outputFile3)'
+        artifactName: 'NmapScan3Results'
+      displayName: 'Publish Nmap Scan 3 Results'
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)/$(outputFile4)'
+        artifactName: 'NmapScan4Results'
+      displayName: 'Publish Nmap Version Detection Scan Results'
