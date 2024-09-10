@@ -138,10 +138,10 @@ jobs:
         docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -sV --version-all -T4  -p $(scanPort) -oN -Pn /nmap/$(outputFile1) $(nmapTarget) || true
         echo "Running Nmap Vulnerability Script Scan on $(nmapTarget)"
         # Run Nmap vulnerability script scan
-        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap --script vuln -oN /nmap/$(outputFile2) $(nmapTarget) || true
+        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap --script vuln -oN p $(scanPort) -Pn - /nmap/$(outputFile2) $(nmapTarget) || true
         echo "Running Nmap Primary Scan with options: -A on $(nmapTarget)"
         # Run Nmap primary scan with options -A
-        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -A -oN /nmap/$(outputFile3) $(nmapTarget) || true
+        docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -A -oN p $(scanPort) -Pn /nmap/$(outputFile3) $(nmapTarget) || true
         echo "Running Nmap Version Detection Scan with options: -sV --version-all on $(nmapTarget)"
         # Run Nmap version detection scan with options -sV --version-all
         docker run --rm -v $(Pipeline.Workspace):/nmap/ instrumentisto/nmap -sV --version-all -oN /nmap/$(outputFile4) $(nmapTarget) || true
