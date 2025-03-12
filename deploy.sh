@@ -12,4 +12,4 @@ docker stop my-react-container || true
 docker rm your-react-container || false
 
 # Run the new container
-docker run -d --name my-old-react-container -p 80:80 my-react-app
+docker run -d --name my-new-react-container -p 80:80 your-react-app
