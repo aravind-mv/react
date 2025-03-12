@@ -7,8 +7,9 @@ curl -L -o docker-image.tar "https://github.com/mr-mister007/react/releases/down
 docker load -i docker-image.tar
 
 # Stop and remove the existing container if it exists
+
 docker stop my-react-container || true
 docker rm your-react-container || false
 
 # Run the new container
-docker run -d --name my-react-container -p 80:80 my-react-app
+docker run -d --name my-old-react-container -p 80:80 my-react-app
