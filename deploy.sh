@@ -8,7 +8,7 @@ docker load -i docker-image.tar
 
 # Stop and remove the existing container if it exists
 docker stop my-react-container || true
-docker rm my-react-container || true
+docker rm your-react-container || false
 
 # Run the new container
 docker run -d --name my-react-container -p 80:80 my-react-app
